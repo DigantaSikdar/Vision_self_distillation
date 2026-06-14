@@ -38,3 +38,6 @@ venv/
 
 # keep the outputs/ dir present but empty in git
 !outputs/.gitkeep
+
+data/
+

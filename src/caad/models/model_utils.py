@@ -154,10 +154,17 @@ def get_visual_features(model, pixel_values_videos, video_grid_thw):
     actually sees under the clean vs corrupted view.
     """
     core = model
-    # Unwrap PEFT / the CausalLM head down to the module that owns `.visual`.
-    for attr in ("base_model", "model"):
-        if not hasattr(core, "visual") and hasattr(core, attr):
-            core = getattr(core, attr)
+    # Unwrap DDP / PEFT / the CausalLM head down to the module that owns `.visual`.
+    # Walk repeatedly: e.g. DDP(.module) -> PeftModel(.base_model) -> (.model) -> .visual
+    for _ in range(6):
+        if hasattr(core, "visual"):
+            break
+        for attr in ("module", "base_model", "model"):
+            if hasattr(core, attr):
+                core = getattr(core, attr)
+                break
+        else:
+            break
     visual = core.visual
     dtype = next(visual.parameters()).dtype
     return visual(pixel_values_videos.to(dtype), grid_thw=video_grid_thw)

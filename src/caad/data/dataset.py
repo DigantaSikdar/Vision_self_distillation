@@ -71,5 +71,6 @@ def spec_from_manifest_row(row) -> CorruptionSpec:
     return CorruptionSpec(
         video_id=row["video_id"], style=c["style"], severity=int(c["severity"]),
         seed=int(c["seed"]), temporal_shuffle=bool(c.get("temporal_shuffle", False)),
+        temporal_mask_ratio=float(c.get("temporal_mask_ratio", 0.0)),
         extra=c.get("extra", {}),
     )

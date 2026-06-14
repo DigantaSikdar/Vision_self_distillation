@@ -57,6 +57,9 @@ train:
   logging_first_step: true
 
 rollout:
+  backend: vllm                    # vllm (prod) | hf (correct 1-GPU) | mock (smoke)
+  sync_every: 50                   # push student weights into the vLLM worker every N opt steps
+                                   # (vLLM weight-sync is an unwired seam — see rollout.py)
   num_generations: 4
   temperature: 1.0
   top_p: 1.0

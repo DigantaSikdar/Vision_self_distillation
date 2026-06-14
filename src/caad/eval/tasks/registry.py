@@ -34,4 +34,4 @@ def available():
 
 
 # Import task modules so their @register decorators run.
-from . import video_qa  # noqa: E402,F401
+from . import urbanvideo, video_qa  # noqa: E402,F401

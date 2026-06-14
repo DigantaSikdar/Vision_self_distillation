@@ -13,8 +13,11 @@ help:  ## show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 	  awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
-install:  ## editable install with rollout/viz/logging extras
-	pip install -e ".[rollout,viz,logging,dev]"
+install:  ## editable install (ARM-clean base + data/viz/logging/dev; torch from uenv)
+	pip install -e ".[data,viz,logging,dev]"
+
+install-scale:  ## add multi-GPU + vLLM extras (x86 / where they build)
+	pip install -e ".[viz,logging,dev,deepspeed,rollout]"
 
 train:  ## CFG=configs/train/<exp>.yaml make train   (output_dir set in the recipe)
 	CFG=$(CFG) ACC=$(ACC) bash scripts/train.sh

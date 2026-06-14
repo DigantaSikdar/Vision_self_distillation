@@ -1,0 +1,96 @@
+# =============================================================================
+# CAAD — SMOKE TEST recipe. Shakes out data -> loop -> loss -> checkpoint on ONE
+# GPU with a tiny model, 2 optimizer steps, and a MOCK rollout (no vLLM/no
+# separate generation model). Use it to verify the pipeline runs before a real
+# experiment — NOT for results.
+#
+#   # 1) make tiny synthetic data (no real videos needed):
+#   python data/prepare_corruptions.py synthetic --n 8 \
+#     --clean-dir data/smoke/clean --out-dir data/smoke/corrupted \
+#     --manifest data/smoke/manifest.jsonl --frames 8 --hw 128
+#
+#   # 2) run the smoke (single GPU):
+#   CFG=configs/train/smoke.yaml ACC=configs/accelerate/single_gpu.yaml bash scripts/train.sh
+# =============================================================================
+
+method: caad
+seed: 0
+deterministic: false
+log_level: info
+
+output_dir: outputs/smoke
+
+model:
+  name: Qwen/Qwen2.5-VL-3B-Instruct
+  dtype: bfloat16
+  attn_implementation: flash_attention_2
+  gradient_checkpointing: true
+  gradient_checkpointing_kwargs:
+    use_reentrant: false
+  max_pixels: 50176                # 224*224 — small, fast
+  max_frames: 4
+
+lora:
+  enabled: true
+  r: 8
+  alpha: 16
+  dropout: 0.0
+  target_modules: ["q_proj", "v_proj"]
+
+caad:
+  fkl_quantile: 0.10
+  min_tokens_for_quantile: 8       # tiny rollouts -> low threshold
+  jsd_beta: 0.5
+  lambda_l2: 0.5
+  anchor_beta: 0.05
+  ema_decay: 0.99
+  chunk_size: 64
+
+train:
+  learning_rate: 1.0e-5
+  lr_scheduler_type: cosine
+  warmup_ratio: 0.0
+  max_grad_norm: 1.0
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 1
+  max_steps: 2                     # just prove it runs
+  num_train_epochs: 1
+  ema_every: 1
+  save_steps: 2
+  save_total_limit: 1
+  logging_steps: 1
+  logging_first_step: true
+
+rollout:
+  backend: mock                    # canned completions — no vLLM, no GPU rollout
+  mock_text: "Let me reason step by step. The answer is 0."
+  sync_every: 0
+  num_generations: 1
+  temperature: 1.0
+  top_p: 1.0
+  max_completion_length: 32
+  gpu_mem_util: 0.85
+
+eval:
+  do_eval: false
+  eval_steps: 0
+  manifest: data/smoke/manifest.jsonl
+  samples: 8
+
+data:
+  manifest: data/smoke/manifest.jsonl
+  video_root: null
+  system_prompt: "You are a careful video question-answering assistant."
+
+wandb:
+  enabled: false
+  project: caad
+  run_name: caad-smoke
+  log_completions: true
+  config: null
+
+hub:
+  enabled: false
+  model_id: ""
+  private: true
+  push_every_n_steps: 0

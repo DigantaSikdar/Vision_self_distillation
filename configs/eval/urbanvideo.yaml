@@ -1,0 +1,10 @@
+# configs/eval/urbanvideo.yaml
+# UrbanVideo-Bench MCQ eval. Points at the manifest produced by
+# prepare_urbanvideo.py -> prepare_corruptions.py. Set use_corrupted to score
+# the robustness (corrupted-view) axis.
+manifest: data/urbanvideo/eval_manifest.jsonl
+use_corrupted: false        # true -> evaluate on the corrupted view
+
+tasks:
+  - name: urbanvideo
+    k: 1                     # MCQ: greedy pass@1

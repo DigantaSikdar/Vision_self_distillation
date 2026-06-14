@@ -1,24 +1,39 @@
-# CAAD runtime dependencies.
-# `pip install -e .` (pyproject.toml) is the packaged path; this file mirrors it
-# for `pip install -r requirements.txt`. Keep the two in sync.
+# CAAD dependencies for `pip install -r requirements.txt`.
+# NOTE: this installs DEPS ONLY, not the caad package. Follow it with:
+#     pip install -e . --no-deps
+# (or just use `pip install -e ".[data,viz,logging,dev]"` to do both at once.)
+#
+# On Clariden GH200: `uenv start pytorch/v2.9.1:v2 --view=default` first, then a
+# `python -m venv --system-site-packages .venv` — torch comes from the uenv, so
+# pip won't reinstall it. The commented lines below are arch-specific / scale-up
+# extras; enable them only where they build.
 
-# --- core training ---
-torch>=2.4
+# --- core training (aarch64-friendly base) ---
+torch>=2.4                    # provided by the uenv on Clariden; do not pip-reinstall
 transformers>=4.49            # Qwen2.5-VL support
 accelerate>=0.34
 peft>=0.13
-deepspeed>=0.16
 
 # --- video VLM I/O ---
-qwen-vl-utils
-decord                        # video-decode backend used by qwen-vl-utils
+qwen-vl-utils                 # uses torchvision for video decode if decord is absent
 opencv-python-headless>=4.9   # corruption engine (data/corruption.py)
 numpy>=1.26
 pyyaml>=6.0
 
-# --- rollout + eval inference ---
-vllm>=0.8
+# --- dataset prep / download ---
+huggingface_hub[cli,hf_transfer]>=0.24   # `hf download` + fast transfer
+pandas>=2.0                   # read UrbanVideo MCQ.parquet
+pyarrow>=14
 
 # --- logging / viz ---
 wandb
 matplotlib
+
+# dev (tests/lint)
+pytest>=8.0
+ruff>=0.6
+
+# --- optional / arch-specific (uncomment where supported) ---
+# deepspeed>=0.16             # multi-GPU ZeRO-2/3 only
+# vllm>=0.8                   # rollout.backend=vllm (use backend=hf to start)
+# decord                      # x86 video backend; on ARM rely on torchvision

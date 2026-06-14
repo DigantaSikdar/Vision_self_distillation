@@ -102,7 +102,7 @@ def main():
     if cfg["method"] not in TRAINERS:
         raise SystemExit(f"unknown method '{cfg['method']}'; known: {sorted(TRAINERS)}")
     trainer = TRAINERS[cfg["method"]](model, processor, cfg, acc)
-    rollout = RolloutEngine(cfg, processor)
+    rollout = RolloutEngine(cfg, processor, model=model)
     metrics = MetricsLogger(path, wandb_cfg=cfg.get("wandb"))
 
     loop = TrainLoop(trainer, rollout, loader, opt, acc, cfg, path,

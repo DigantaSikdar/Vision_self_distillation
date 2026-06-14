@@ -30,9 +30,38 @@ docs/  paper/        design notes, manuscript
 ```
 
 ## Setup
+On Clariden (GH200): start the uenv, then a `--system-site-packages` venv so the
+uenv's PyTorch is inherited (don't pip-reinstall torch on aarch64):
 ```bash
-pip install -e ".[rollout,viz,logging,dev]"   # or: make install
-make smoke                                     # import + config resolution check
+uenv start pytorch/v2.9.1:v2 --view=default
+python -m venv --system-site-packages .venv && source .venv/bin/activate
+pip install -e ".[viz,logging,dev]"   # or: make install  (ARM-clean base; torch from uenv)
+make smoke                             # import + config resolution check
+pytest -q                              # unit tests (corruption/divergence/metrics/config)
+```
+Scale-up extras (x86 / where they build): `make install-scale` adds `deepspeed`
+(multi-GPU ZeRO) and `vllm` (the `vllm` rollout backend). On ARM, start with the
+`hf` rollout backend and single-GPU `accelerate` config.
+
+## Smoke test the pipeline (no real data, 1 GPU)
+Verify data → loop → loss → checkpoint end-to-end before a real run. Uses tiny
+synthetic clips and a **mock** rollout (no vLLM):
+```bash
+# 1) fabricate ~8 tiny synthetic clips + a manifest
+python data/prepare_corruptions.py synthetic --n 8 \
+  --clean-dir data/smoke/clean --out-dir data/smoke/corrupted \
+  --manifest data/smoke/manifest.jsonl --frames 8 --hw 128
+# 2) run 2 optimizer steps on one GPU
+CFG=configs/train/smoke.yaml ACC=configs/accelerate/single_gpu.yaml bash scripts/train.sh
+```
+
+## Prepare real data
+Render corrupted copies of your clean clips and write the training manifest
+(`data/dataset.py` documents the row schema):
+```bash
+python data/prepare_corruptions.py real \
+  --source data/raw/clean.jsonl --out-dir data/corrupted \
+  --manifest data/train_manifest.jsonl --styles fog,night,rain --severity 3
 ```
 
 ## Train (one command per experiment)
@@ -74,9 +103,16 @@ RUN=outputs/caad_lora_qwen25vl7b GPUS=0,1,2,3 bash scripts/eval.sh   # RUN = the
    `outputs/ logs/ wandb/ data/` and weights are ignored. Reproducibility =
    frozen `config.yaml` + git SHA.
 
-## Integration seams (wire to your cluster)
-- `caad/rollout.py::RolloutEngine.sync_weights` — push student LoRA into the vLLM
-  worker on the EMA cadence.
+## Rollout backends (`rollout.backend`)
+- `mock` — canned text, no model. Pipeline smoke tests / CI.
+- `hf` — generate with the **live training model**. Correct on a single GPU
+  (always-fresh weights, no sync needed); slower. Good for an initial 1-GPU run.
+- `vllm` — dedicated GPU-0 worker (production, fast). **Seam:** the worker holds a
+  separate weight copy, so `RolloutEngine._sync_vllm` must push the student
+  weights for your vLLM version — until then it warns and rollouts are stale, so
+  prefer `hf` for correct results while scaling up.
+
+## Other integration seams
 - `caad/eval/run_task.py::_default_sampler` — checkpoint-backed sampler for eval.
-- `configs/train/config_*.yaml::data.manifest` — point at your train/eval
-  manifests (`data/dataset.py` documents the row schema).
+- Multi-rank vLLM (1 shared worker, N training clients) is not wired — single
+  process / `hf` backend is the runnable path today.

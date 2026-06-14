@@ -67,8 +67,12 @@ train:
   logging_steps: 10
   logging_first_step: true
 
-# --- rollout (vLLM sampling of student completions) ---
+# --- rollout (sampling of student completions) ---
 rollout:
+  backend: vllm                    # vllm (prod, GPU-0 worker) | hf (correct 1-GPU) | mock (smoke)
+  sync_every: 50                   # push student weights into the vLLM worker every N opt steps
+                                   # (NOTE: vLLM weight-sync is an unwired seam — see rollout.py;
+                                   #  use backend: hf for a correct single-GPU initial run)
   num_generations: 4               # student completions sampled per (video, question)
   temperature: 1.0
   top_p: 1.0

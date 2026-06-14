@@ -58,6 +58,7 @@ class TrainLoop:
         self.logging_first_step = t.get("logging_first_step", False)
         self.max_grad_norm = t.get("max_grad_norm", 0.0)
         self.save_total_limit = t.get("save_total_limit", 0)
+        self.rollout_sync_every = (cfg.get("rollout", {}) or {}).get("sync_every", 0)
         self.hub = cfg.get("hub", {}) or {}
         ev = cfg.get("eval", {}) or {}
         self.do_eval = ev.get("do_eval", False)
@@ -69,6 +70,8 @@ class TrainLoop:
         opt_step = 0       # optimizer steps taken
         epoch = 0
         done = False
+        # make the rollout policy match the starting weights before step 1
+        self.rollout.sync_weights(self.step_trainer.model, self.acc)
         self.opt.zero_grad()
         while not done:
             for sample in self.loader:
@@ -95,6 +98,8 @@ class TrainLoop:
 
                 if opt_step % self.ema_every == 0:
                     self.step_trainer.update_ema_teacher()
+                if self.rollout_sync_every and opt_step % self.rollout_sync_every == 0:
+                    self.rollout.sync_weights(self.step_trainer.model, self.acc)
                 self._maybe_log(opt_step, stats, last_completion)
                 if self.do_eval and self.eval_steps > 0 and opt_step % self.eval_steps == 0:
                     self._run_eval(opt_step)

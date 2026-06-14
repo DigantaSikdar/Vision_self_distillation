@@ -9,21 +9,27 @@ description = "Corruption-Aware Adaptive Distillation for video VLMs (self-disti
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
+# Base deps are kept aarch64-friendly (Clariden GH200): no decord (qwen-vl-utils
+# falls back to torchvision, which ships with the uenv torch) and no deepspeed
+# (multi-GPU only). torch comes from the uenv — a --system-site-packages venv
+# satisfies `torch` without reinstalling. Heavy/arch-specific bits are extras.
 dependencies = [
     "torch>=2.4",
     "transformers>=4.49",       # Qwen2.5-VL support
     "accelerate>=0.34",
     "peft>=0.13",
-    "deepspeed>=0.16",
     "qwen-vl-utils",
-    "decord",                   # video-decode backend for qwen-vl-utils
     "opencv-python-headless>=4.9",
     "numpy>=1.26",
     "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
-rollout = ["vllm>=0.6.3"]                    # generation worker (GPU 0)
+rollout = ["vllm>=0.6.3"]                    # vLLM generation worker (GPU 0)
+deepspeed = ["deepspeed>=0.16"]              # multi-GPU ZeRO-2/3 training
+data = ["pandas>=2.0", "pyarrow>=14",        # dataset prep (read MCQ.parquet)
+        "huggingface_hub[cli,hf_transfer]>=0.24"]   # download + the `hf` CLI
+decord = ["decord"]                          # alt video backend (x86 mainly; ARM uses torchvision)
 viz = ["matplotlib>=3.8"]
 logging = ["wandb>=0.17"]
 dev = ["pytest>=8.0", "ruff>=0.6"]

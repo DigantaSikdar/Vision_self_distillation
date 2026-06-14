@@ -1,0 +1,107 @@
+# =============================================================================
+# CAAD — full multi-GPU RL training, Qwen2.5-VL-7B, DEDICATED vLLM SERVER topology.
+#   GPU 0      = vLLM rollout server (scripts/vllm_serve.sh, started by train_rl.sh)
+#   GPUs 1..N-1 = training (accelerate + ZeRO)
+#
+# Train mode is config-driven:
+#   LoRA + ZeRO-2 (this file): lora.enabled=true, sync_mode=lora, ACC=zero2.yaml
+#   Full-FT + ZeRO-3         : set lora.enabled=false, sync_mode=full, ACC=zero3.yaml
+#                              (full-weight vLLM sync is a seam — see rollout.py)
+#
+#   CFG=configs/train/caad_lora_qwen25vl7b_rl.yaml ACC=configs/accelerate/zero2.yaml \
+#     NUM_GPUS=4 bash scripts/train_rl.sh data.manifest=data/videor1/train_manifest.jsonl
+#
+# IMPORTANT: num_processes in the ACC config must equal (total GPUs - 1), since
+# GPU 0 is the server.
+# =============================================================================
+
+method: caad
+seed: 7
+deterministic: false
+log_level: info
+
+output_dir: /capstor/scratch/cscs/ahsan600613/outputs/caad_7b_rl
+
+model:
+  name: Qwen/Qwen2.5-VL-7B-Instruct
+  dtype: bfloat16
+  attn_implementation: sdpa        # GH200: SDPA = FlashAttention-2 (no flash-attn pkg)
+  gradient_checkpointing: true
+  gradient_checkpointing_kwargs:
+    use_reentrant: false
+  max_pixels: 200704
+  max_frames: 16
+
+lora:                              # set enabled:false for the full-FT (ZeRO-3) variant
+  enabled: true
+  r: 16
+  alpha: 32
+  dropout: 0.0
+  target_modules: ["q_proj", "k_proj", "v_proj", "o_proj",
+                   "gate_proj", "up_proj", "down_proj"]
+
+caad:
+  fkl_quantile: 0.10
+  min_tokens_for_quantile: 24
+  jsd_beta: 0.5
+  lambda_l2: 0.5
+  anchor_beta: 0.05
+  ema_decay: 0.999
+  chunk_size: 64
+
+train:
+  learning_rate: 1.0e-5
+  lr_scheduler_type: cosine
+  warmup_ratio: 0.1
+  max_grad_norm: 1.0
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 8
+  max_steps: 2000
+  num_train_epochs: 1
+  ema_every: 1
+  save_steps: 200
+  save_total_limit: 10
+  logging_steps: 10
+  logging_first_step: true
+
+# --- rollout: dedicated vLLM server (GPU 0) ---
+rollout:
+  backend: vllm
+  sync_mode: auto                  # auto -> lora if lora.enabled else full
+  sync_every: 25                   # push student weights to the server every N opt steps
+  num_generations: 4
+  temperature: 1.0
+  top_p: 1.0
+  max_completion_length: 512
+  server:
+    host: 127.0.0.1
+    port: 8000
+    gpu: 0
+    gpu_mem_util: 0.85
+    max_lora_rank: 16
+    startup_timeout: 600
+    adapter_dir: /capstor/scratch/cscs/ahsan600613/outputs/caad_7b_rl/_vllm_adapters
+
+eval:
+  do_eval: false
+  eval_steps: 0
+  manifest: data/urbanvideo/eval_manifest.jsonl
+  samples: 200
+
+data:
+  manifest: data/videor1/train_manifest.jsonl
+  video_root: null
+  system_prompt: "You are a careful video question-answering assistant. Answer with the option letter."
+
+wandb:
+  enabled: true
+  project: caad
+  run_name: caad-7b-rl
+  log_completions: false
+  config: null
+
+hub:
+  enabled: false
+  model_id: ""
+  private: true
+  push_every_n_steps: 0

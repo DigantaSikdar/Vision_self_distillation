@@ -46,7 +46,8 @@ class CorruptionSpec:
     style: str
     severity: int                      # 1..5
     seed: int
-    temporal_shuffle: bool = False
+    temporal_shuffle: bool = False     # permute all frames (most aggressive)
+    temporal_mask_ratio: float = 0.0   # blank this fraction of frames to black (order kept)
     extra: dict = field(default_factory=dict)
 
     def to_json(self) -> str:
@@ -63,11 +64,13 @@ def derive_seed(video_id: str, style: str, severity: int, global_seed: int) -> i
     return int.from_bytes(hashlib.sha256(key).digest()[:8], "little")
 
 
-def make_spec(video_id, style, severity, global_seed, temporal_shuffle=False):
+def make_spec(video_id, style, severity, global_seed, temporal_shuffle=False,
+              temporal_mask_ratio=0.0):
     return CorruptionSpec(
         video_id=video_id, style=style, severity=int(severity),
         seed=derive_seed(video_id, style, severity, global_seed),
         temporal_shuffle=temporal_shuffle,
+        temporal_mask_ratio=temporal_mask_ratio,
     )
 
 
@@ -86,9 +89,16 @@ def apply_corruption(frames: np.ndarray, spec: CorruptionSpec) -> np.ndarray:
     fn = _DISPATCH[spec.style]
     out = fn(out, sev, rng)
 
+    # --- temporal perturbation (keeps frame COUNT; preserves token alignment) ---
+    T = out.shape[0]
+    if spec.temporal_mask_ratio > 0:
+        # blank a fraction of frames to black, order preserved (frame dropout)
+        k = int(round(spec.temporal_mask_ratio * T))
+        if k > 0:
+            drop = rng.choice(T, size=min(k, T), replace=False)
+            out[drop] = 0.0
     if spec.temporal_shuffle:
-        perm = rng.permutation(out.shape[0])
-        out = out[perm]
+        out = out[rng.permutation(T)]
 
     out = np.clip(out, 0, 255).astype(np.uint8)
     assert out.shape == frames.shape, (

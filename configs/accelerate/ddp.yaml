@@ -1,0 +1,11 @@
+# configs/accelerate/ddp.yaml
+# Plain multi-GPU DDP — NO DeepSpeed needed. Right for LoRA runs (trainable
+# params are small, so no ZeRO sharding required). Set num_processes to your GPU
+# count. Use zero3.yaml (+ the deepspeed extra) only for full fine-tuning.
+#   accelerate launch --config_file configs/accelerate/ddp.yaml ...
+compute_environment: LOCAL_MACHINE
+distributed_type: MULTI_GPU
+mixed_precision: bf16
+num_machines: 1
+num_processes: 4          # = number of training GPUs
+use_cpu: false
