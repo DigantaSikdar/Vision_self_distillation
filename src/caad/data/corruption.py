@@ -1,6 +1,6 @@
 """
-data/corruption.py
-==================
+caad/data/corruption.py
+=======================
 ROVA-style spatio-temporal corruption engine.
 
 Design contract (this is what makes spec-replay and the CAAD/GRPO comparison

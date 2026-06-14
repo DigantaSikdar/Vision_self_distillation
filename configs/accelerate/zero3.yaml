@@ -1,0 +1,17 @@
+# configs/accelerate/zero3.yaml
+# ZeRO-3 with optimizer+param offload — for full-FT of the 7B base.
+# num_processes = TRAINING GPUs only (GPU 0 reserved for the vLLM rollout worker).
+# gradient_accumulation_steps: auto -> filled from the recipe (train.grad_accum).
+compute_environment: LOCAL_MACHINE
+distributed_type: DEEPSPEED
+deepspeed_config:
+  zero_stage: 3
+  gradient_accumulation_steps: auto
+  gradient_clipping: 1.0
+  offload_optimizer_device: cpu
+  offload_param_device: cpu
+  zero3_save_16bit_model: true
+mixed_precision: bf16
+num_machines: 1
+num_processes: 3
+use_cpu: false

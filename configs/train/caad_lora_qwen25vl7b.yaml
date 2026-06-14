@@ -1,0 +1,105 @@
+# =============================================================================
+# CAAD — LoRA dual-adapter, Qwen2.5-VL-7B-Instruct
+# Self-contained recipe: everything for this run lives in THIS file (no merging).
+# Copy this file to start a new experiment; change only what differs.
+# 1 node (4 GPU): GPU 0 = vLLM rollout worker, GPUs 1-3 = ZeRO-2 training.
+# Effective batch = per_device(1) x grad_accum(8) x num_generations(4) x 3 GPUs = 96
+#   CFG=configs/train/caad_lora_qwen25vl7b.yaml bash scripts/train.sh
+# =============================================================================
+
+method: caad                 # selects the trainer (see TRAINERS in caad/train.py)
+seed: 7
+deterministic: false
+log_level: info
+
+# where THIS run's checkpoints / logs / results / frozen-config are written.
+# Point it at scratch on a cluster, e.g.
+#   /capstor/scratch/cscs/ahsan600613/outputs/caad_lora_qwen25vl7b
+output_dir: outputs/caad_lora_qwen25vl7b
+
+# --- model ---
+model:
+  name: Qwen/Qwen2.5-VL-7B-Instruct
+  dtype: bfloat16                  # bf16 training (also set in the accelerate config)
+  attn_implementation: flash_attention_2
+  gradient_checkpointing: true
+  gradient_checkpointing_kwargs:
+    use_reentrant: false
+  max_pixels: 200704               # 448*448 — caps visual tokens per frame
+  max_frames: 16
+
+# --- LoRA (student = trainable adapter, teacher = its EMA) ---
+lora:
+  enabled: true
+  r: 16
+  alpha: 32
+  dropout: 0.0
+  target_modules: ["q_proj", "k_proj", "v_proj", "o_proj",
+                   "gate_proj", "up_proj", "down_proj"]
+
+# --- CAAD method knobs ---
+caad:
+  fkl_quantile: 0.10               # bottom-q teacher-entropy tokens use forward-KL, rest JSD
+  min_tokens_for_quantile: 24      # short rollouts fall back to the batch-level quantile
+  jsd_beta: 0.5
+  lambda_l2: 0.5                   # weight on the clean<-corrupted visual-L2 alignment term
+  anchor_beta: 0.05                # KL(pi || pi_init) weight — CAAD's reference-KL (TRL's `beta` role)
+  ema_decay: 0.999                 # teacher EMA decay
+  chunk_size: 64                   # sequence-axis chunk for the divergence math (OOM guard)
+
+# --- training (step counts below are OPTIMIZER steps, not samples) ---
+train:
+  # optimizer
+  learning_rate: 1.0e-5
+  lr_scheduler_type: cosine
+  warmup_ratio: 0.1
+  max_grad_norm: 1.0
+  # batch (effective batch formula in the header)
+  per_device_train_batch_size: 1   # video VLM: accumulate sequentially, bs=1 per device
+  gradient_accumulation_steps: 8
+  # schedule — use max_steps OR (set max_steps:0 and use num_train_epochs)
+  max_steps: 2000
+  num_train_epochs: 1
+  ema_every: 1                     # EMA-update the teacher every N optimizer steps
+  save_steps: 200
+  save_total_limit: 10
+  # logging
+  logging_steps: 10
+  logging_first_step: true
+
+# --- rollout (vLLM sampling of student completions) ---
+rollout:
+  num_generations: 4               # student completions sampled per (video, question)
+  temperature: 1.0
+  top_p: 1.0
+  max_completion_length: 512
+  gpu_mem_util: 0.85
+
+# --- in-training eval (off by default; the standalone caad.eval harness is the
+#     main path — see configs/eval/. do_eval needs an injected evaluator seam) ---
+eval:
+  do_eval: false
+  eval_steps: 0
+  manifest: data/eval_manifest.jsonl
+  samples: 200
+
+# --- data ---
+data:
+  manifest: data/train_manifest.jsonl
+  video_root: null
+  system_prompt: "You are a careful video question-answering assistant."
+
+# --- logging / W&B ---
+wandb:
+  enabled: true
+  project: caad
+  run_name: caad-lora-qwen25vl7b-base    # explicit W&B run name (else falls back to output_dir name)
+  log_completions: false                 # log a sample rollout text per logging step
+  config: null
+
+# --- HF hub push (fully config-controlled; in-training push when enabled) ---
+hub:
+  enabled: false                   # set true to push checkpoints during training
+  model_id: ""                     # e.g. user/caad-qwen25vl7b
+  private: true
+  push_every_n_steps: 200

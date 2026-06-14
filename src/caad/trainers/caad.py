@@ -1,6 +1,6 @@
 """
-caad/trainer.py
-===============
+caad/trainers/caad.py
+=====================
 The CAAD training step. Per sample, four forwards on one base model:
 
   rollout      vLLM (GPU 0)         y ~ pi_student( . | q, V_corrupted )
@@ -21,10 +21,11 @@ from __future__ import annotations
 
 import torch
 
-from .divergence import (anchor_kl_loss, fkl_gate_mask, gated_divergence_loss,
-                         teacher_entropy, visual_l2_loss)
-from .model_utils import (STUDENT, TEACHER, get_visual_features, sync_adapter,
-                          use_adapter, use_anchor)
+from ..losses.divergence import (anchor_kl_loss, fkl_gate_mask,
+                                 gated_divergence_loss, teacher_entropy,
+                                 visual_l2_loss)
+from ..models.model_utils import (STUDENT, TEACHER, get_visual_features,
+                                  sync_adapter, use_adapter, use_anchor)
 
 
 def build_inputs(processor, system_prompt, question, video_path,

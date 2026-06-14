@@ -1,0 +1,11 @@
+# configs/eval/video_suite.yaml
+# Eval suite consumed by caad.eval.orchestrate. Each task names a registered
+# benchmark (caad/eval/tasks/registry.py) plus its loader config and k.
+manifest: data/eval_manifest.jsonl
+use_corrupted: false        # set true to evaluate on the corrupted (robustness) view
+
+tasks:
+  - name: video_qa
+    k: 1
+  - name: video_qa
+    k: 5                     # for pass@k / maj@k

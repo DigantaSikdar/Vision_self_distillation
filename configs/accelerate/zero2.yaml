@@ -1,0 +1,18 @@
+# configs/accelerate/zero2.yaml
+# `accelerate launch --config_file configs/accelerate/zero2.yaml ...`
+# num_processes = TRAINING GPUs only (GPU 0 is reserved for the vLLM rollout
+# worker, so a 4-GPU node trains on 3). gradient_accumulation_steps: auto lets
+# accelerate fill it from the Accelerator() arg (= recipe train.grad_accum), so
+# it is set in ONE place (the recipe), never double-counted here.
+compute_environment: LOCAL_MACHINE
+distributed_type: DEEPSPEED
+deepspeed_config:
+  zero_stage: 2
+  gradient_accumulation_steps: auto
+  gradient_clipping: 1.0
+  offload_optimizer_device: none
+  offload_param_device: none
+mixed_precision: bf16
+num_machines: 1
+num_processes: 3
+use_cpu: false

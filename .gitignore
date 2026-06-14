@@ -1,0 +1,40 @@
+# --- artifacts: reproducibility comes from configs/ + git SHA, not blobs ---
+outputs/
+wandb/
+logs/
+
+# --- data & weights ---
+# ignore raw/processed media + manifests, but KEEP committed prep code/READMEs
+data/raw/
+data/processed/
+data/**/*.jsonl
+*.pt
+*.pth
+*.safetensors
+*.ckpt
+*.bin
+*.mp4
+*.avi
+*.webm
+
+# --- python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.env
+
+# --- tooling / editors ---
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.vscode/
+.idea/
+.DS_Store
+
+# keep the outputs/ dir present but empty in git
+!outputs/.gitkeep

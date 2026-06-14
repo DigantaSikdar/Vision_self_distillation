@@ -1,6 +1,6 @@
 """
-caad/divergence.py
-==================
+caad/losses/divergence.py
+=========================
 Per-token adaptive divergence for CAAD.
 
 Gate (revised proposal):
